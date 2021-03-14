@@ -234,7 +234,8 @@ void CLG_(push_call_stack)(BBCC* from, UInt jmp, BBCC* to, Addr sp, Bool skip)
 	jcc->call_counter++;
 	CLG_(stat).call_counter++;
 
-	if (*pdepth == 1) function_entered(to_fn);
+  VG_(umsg)("Entering func1 %s %d\n",to_fn->name, *pdepth);
+	function_entered(to_fn);
     }
 
     /* return address is only is useful with a real call;

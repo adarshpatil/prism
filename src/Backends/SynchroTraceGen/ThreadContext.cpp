@@ -3,6 +3,7 @@
 #include "TextLoggerV2.hpp"
 #include "CapnLogger.hpp"
 #include "NullLogger.hpp"
+//#include <iostream>
 
 using PrismLog::fatal;
 
@@ -28,6 +29,7 @@ ThreadContextCompressed::ThreadContextCompressed(TID tid,
 
 ThreadContextCompressed::~ThreadContextCompressed()
 {
+    //std::cout << "destructor threadcontextCompressed" << std::endl;
     compFlushIfActive();
     commFlushIfActive();
 }

@@ -2,6 +2,8 @@
 #include "STTypes.hpp"
 #include "TextLogger.hpp"
 #include <cassert>
+#include <stdlib.h>
+#include <iostream>
 
 using namespace PrismLog; // console logging
 namespace STGen
@@ -27,6 +29,8 @@ unsigned primsPerStCompEv{100};
 std::string loggerType;
 TCxtGenerator genTCxt;
 
+StatCounter maxOps;
+StatCounter totalOps{0};
 std::mutex gMtx;
 ThreadStatMap allThreadsStats;
 SpawnList threadSpawns;
@@ -62,6 +66,16 @@ auto EventHandlers::onCompEv(const prism::CompEvent &ev) -> void
         cachedTCxt->onIop();
     else if (ev.isFLOP())
         cachedTCxt->onFlop();
+    totalOps++;
+    if (totalOps >= maxOps)
+    {
+        std::lock_guard<std::mutex> lock(gMtx);
+        for (auto& p : tcxts)
+            allThreadsStats.emplace(p.first, p.second->getStats());
+        onExit();
+        delete cachedTCxt;
+        exit(0);
+    }
 }
 
 
@@ -73,6 +87,17 @@ auto EventHandlers::onMemEv(const prism::MemEvent &ev) -> void
         cachedTCxt->onRead(ev.addr(), ev.bytes());
     else if (ev.isStore())
         cachedTCxt->onWrite(ev.addr(), ev.bytes());
+    totalOps++;
+    if (totalOps >= maxOps)
+    {
+        std::lock_guard<std::mutex> lock(gMtx);
+        for (auto& p : tcxts)
+            allThreadsStats.emplace(p.first, p.second->getStats());
+        onExit();
+        delete cachedTCxt;
+        exit(0);
+    }
+
 }
 
 
@@ -97,7 +122,7 @@ EventHandlers::~EventHandlers()
 
 auto onExit() -> void
 {
-    std::lock_guard<std::mutex> lock(gMtx);
+    //std::lock_guard<std::mutex> lock(gMtx);
     flushPthread(outputPath + "/sigil.pthread.out", newThreadsInOrder,
                  threadSpawns, barrierParticipants);
     flushStats(outputPath + "/sigil.stats.out", allThreadsStats);
@@ -325,6 +350,31 @@ auto parseCompression(std::string compression) -> int
     }
 }
 
+auto parseMaxOps(std::string maxops) -> unsigned long long
+{
+    if (maxops.empty() == true)
+        return 70000000000; // 70B default
+
+    try
+    {
+        unsigned long long ret = std::stoull(maxops);
+        if (ret < 1)
+            fatal("SynchroTraceGen max ops: invalid argument");
+        return ret;
+    }
+    catch (std::invalid_argument &e)
+    {
+        fatal("SynchroTraceGen max ops: invalid argument");
+    }
+    catch (std::out_of_range &e)
+    {
+        fatal("SynchroTraceGen max ops: out_of_range");
+    }
+    catch (std::exception &e)
+    {
+        fatal(std::string("SynchroTraceGen max ops: ").append(e.what()));
+    }
+}
 
 auto parseOutputPath(std::string outputPath) -> std::string
 {
@@ -342,11 +392,16 @@ auto onParse(Args args) -> void
     options.insert('o'); // -o OUTPUT_DIRECTORY
     options.insert('c'); // -c COMPRESSION_VALUE
     options.insert('l'); // -l {text,capnp}
+    options.insert('n'); // -n MAX_OPS
     auto matches = parseAll(args, options);
 
     outputPath = parseOutputPath(matches['o']);
     loggerType = parseLogger(matches['l']);
     primsPerStCompEv = parseCompression(matches['c']);
+    maxOps = parseMaxOps(matches['n']);
+
+    std::cout << "Tracing for Max Ops : " << maxOps << std::endl;
+
 
     if (primsPerStCompEv == 1)
         genTCxt = ThreadContextGenerator<ThreadContextUncompressed>;

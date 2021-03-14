@@ -1,5 +1,6 @@
 #include "TextLoggerV2.hpp"
 #include "spdlog/fmt/fmt.h"
+//#include <iostream>
 
 namespace STGen
 {
@@ -47,6 +48,7 @@ TextLoggerV2Compressed::TextLoggerV2Compressed(TID tid, const std::string& outpu
 
 TextLoggerV2Compressed::~TextLoggerV2Compressed()
 {
+    //std::cout << "destructor textloggerV2compressed" << std::endl;
     prism::blockingFlushAndDeleteLogger(logger);
     /* gzofstream destructor closes gzfile  */
 }
